@@ -5,13 +5,10 @@
         </template>
         <template v-slot:body>
             <details open>
-                <summary>v0.0 Initial Commit - <time>2021-09-04</time></summary>
+                <summary>v0.0 Initial Commit - <time>2022-03-17</time></summary>
                 This is the first release :D
                 <ul>
-                    <li class="feature">Did everything</li>
-                    <li class="fix">Had some fun</li>
-                    <li class="breaking">Removed everything</li>
-                    <li class="balancing">Created some bugs to fix later</li>
+                    <li class="feature">Did nothing, this is a straight port</li>
                 </ul>
             </details>
         </template>
