@@ -1,11 +1,15 @@
 import Spacer from "components/layout/Spacer.vue";
 import { jsx } from "features/feature";
 import { createResource, trackBest, trackOOMPS, trackTotal } from "features/resources/resource";
-import { branchedResetPropagation, createTree, GenericTree } from "features/trees/tree";
+import type { GenericTree } from "features/trees/tree";
+import { branchedResetPropagation, createTree } from "features/trees/tree";
 import { globalBus } from "game/events";
-import { createLayer, GenericLayer } from "game/layers";
-import player, { PlayerData } from "game/player";
-import Decimal, { DecimalSource, format, formatTime } from "util/bignum";
+import type { GenericLayer } from "game/layers";
+import { createLayer } from "game/layers";
+import type { PlayerData } from "game/player";
+import player from "game/player";
+import type { DecimalSource } from "util/bignum";
+import Decimal, { format, formatTime } from "util/bignum";
 import { render } from "util/vue";
 import { computed, toRaw } from "vue";
 import prestige from "./layers/prestige";
@@ -13,7 +17,7 @@ import prestige from "./layers/prestige";
 /**
  * @hidden
  */
-export const main = createLayer(() => {
+export const main = createLayer("main", () => {
     const points = createResource<DecimalSource>(10);
     const best = trackBest(points);
     const total = trackTotal(points);
@@ -40,24 +44,23 @@ export const main = createLayer(() => {
     })) as GenericTree;
 
     return {
-        id: "main",
         name: "Tree",
         links: tree.links,
         display: jsx(() => (
             <>
-                <div v-show={player.devSpeed === 0}>Game Paused</div>
-                <div v-show={player.devSpeed && player.devSpeed !== 1}>
-                    Dev Speed: {format(player.devSpeed || 0)}x
-                </div>
-                <div v-show={player.offlineTime != undefined}>
-                    Offline Time: {formatTime(player.offlineTime || 0)}
-                </div>
+                {player.devSpeed === 0 ? <div>Game Paused</div> : null}
+                {player.devSpeed && player.devSpeed !== 1 ? (
+                    <div>Dev Speed: {format(player.devSpeed)}x</div>
+                ) : null}
+                {player.offlineTime ? (
+                    <div>Offline Time: {formatTime(player.offlineTime)}</div>
+                ) : null}
                 <div>
-                    <span v-show={Decimal.lt(points.value, "1e1000")}>You have </span>
+                    {Decimal.lt(points.value, "1e1000") ? <span>You have </span> : null}
                     <h2>{format(points.value)}</h2>
-                    <span v-show={Decimal.lt(points.value, "1e1e6")}> points</span>
+                    {Decimal.lt(points.value, "1e1e6") ? <span> points</span> : null}
                 </div>
-                <div v-show={Decimal.gt(pointGain.value, 0)}>({oomps.value})</div>
+                {Decimal.gt(pointGain.value, 0) ? <div>({oomps.value})</div> : null}
                 <Spacer />
                 {render(tree)}
             </>
@@ -70,15 +73,27 @@ export const main = createLayer(() => {
     };
 });
 
+/**
+ * Given a player save data object being loaded, return a list of layers that should currently be enabled.
+ * If your project does not use dynamic layers, this should just return all layers.
+ */
 export const getInitialLayers = (
     /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
     player: Partial<PlayerData>
 ): Array<GenericLayer> => [main, prestige];
 
+/**
+ * A computed ref whose value is true whenever the game is over.
+ */
 export const hasWon = computed(() => {
     return false;
 });
 
+/**
+ * Given a player save data object being loaded with a different version, update the save data object to match the structure of the current version.
+ * @param oldVersion The version of the save being loaded in
+ * @param player The save data being loaded in
+ */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 export function fixOldSave(
     oldVersion: string | undefined,

@@ -1,29 +1,20 @@
 import Col from "components/layout/Column.vue";
 import Row from "components/layout/Row.vue";
+import type { CoercableComponent, GenericComponent, JSXFunction } from "features/feature";
+import { Component as ComponentKey, GatherProps, jsx, Visibility } from "features/feature";
+import type { ProcessedComputable } from "util/computed";
+import { DoNotCache } from "util/computed";
+import type { Component, ComputedRef, DefineComponent, PropType, Ref, ShallowRef } from "vue";
 import {
-    CoercableComponent,
-    Component as ComponentKey,
-    GatherProps,
-    GenericComponent,
-    JSXFunction
-} from "features/feature";
-import {
-    Component,
     computed,
-    ComputedRef,
-    DefineComponent,
     defineComponent,
     isRef,
     onUnmounted,
-    PropType,
     ref,
-    Ref,
-    ShallowRef,
     shallowRef,
     unref,
     watchEffect
 } from "vue";
-import { DoNotCache, ProcessedComputable } from "./computed";
 
 export function coerceComponent(
     component: CoercableComponent,
@@ -70,6 +61,30 @@ export function renderCol(...objects: (VueFeature | CoercableComponent)[]): JSX.
     return <Col>{objects.map(render)}</Col>;
 }
 
+export function renderJSX(object: VueFeature | CoercableComponent): JSX.Element {
+    if (isCoercableComponent(object)) {
+        if (typeof object === "function") {
+            return (object as JSXFunction)();
+        }
+        if (typeof object === "string") {
+            return <>{object}</>;
+        }
+        // TODO why is object typed as never?
+        const Comp = object as DefineComponent;
+        return <Comp />;
+    }
+    const Component = object[ComponentKey];
+    return <Component {...object[GatherProps]()} />;
+}
+
+export function renderRowJSX(...objects: (VueFeature | CoercableComponent)[]): JSX.Element {
+    return <Row>{objects.map(renderJSX)}</Row>;
+}
+
+export function renderColJSX(...objects: (VueFeature | CoercableComponent)[]): JSX.Element {
+    return <Col>{objects.map(renderJSX)}</Col>;
+}
+
 export function isCoercableComponent(component: unknown): component is CoercableComponent {
     if (typeof component === "string") {
         return true;
@@ -86,19 +101,21 @@ export function isCoercableComponent(component: unknown): component is Coercable
 }
 
 export function setupHoldToClick(
-    onClick?: Ref<VoidFunction | undefined>,
+    onClick?: Ref<((e?: MouseEvent | TouchEvent) => void) | undefined>,
     onHold?: Ref<VoidFunction | undefined>
 ): {
-    start: VoidFunction;
+    start: (e: MouseEvent | TouchEvent) => void;
     stop: VoidFunction;
     handleHolding: VoidFunction;
 } {
-    const interval = ref<null | number>(null);
+    const interval = ref<NodeJS.Timer | null>(null);
+    const event = ref<MouseEvent | TouchEvent | undefined>(undefined);
 
-    function start() {
+    function start(e: MouseEvent | TouchEvent) {
         if (!interval.value) {
             interval.value = setInterval(handleHolding, 250);
         }
+        event.value = e;
     }
     function stop() {
         if (interval.value) {
@@ -110,7 +127,7 @@ export function setupHoldToClick(
         if (onHold && onHold.value) {
             onHold.value();
         } else if (onClick && onClick.value) {
-            onClick.value();
+            onClick.value(event.value);
         }
     }
 
@@ -119,21 +136,43 @@ export function setupHoldToClick(
     return { start, stop, handleHolding };
 }
 
+export function getFirstFeature<
+    T extends VueFeature & { visibility: ProcessedComputable<Visibility> }
+>(
+    features: T[],
+    filter: (feature: T) => boolean
+): {
+    firstFeature: Ref<T | undefined>;
+    collapsedContent: JSXFunction;
+    hasCollapsedContent: Ref<boolean>;
+} {
+    const filteredFeatures = computed(() =>
+        features.filter(
+            feature => unref(feature.visibility) === Visibility.Visible && filter(feature)
+        )
+    );
+    return {
+        firstFeature: computed(() => filteredFeatures.value[0]),
+        collapsedContent: jsx(() => renderCol(...filteredFeatures.value.slice(1))),
+        hasCollapsedContent: computed(() => filteredFeatures.value.length > 1)
+    };
+}
+
 export function computeComponent(
     component: Ref<ProcessedComputable<CoercableComponent>>,
     defaultWrapper = "div"
-): ShallowRef<Component | JSXFunction | ""> {
-    const comp = shallowRef<Component | JSXFunction | "">();
+): ShallowRef<Component | ""> {
+    const comp = shallowRef<Component | "">();
     watchEffect(() => {
         comp.value = coerceComponent(unwrapRef(component), defaultWrapper);
     });
-    return comp as ShallowRef<Component | JSXFunction | "">;
+    return comp as ShallowRef<Component | "">;
 }
 export function computeOptionalComponent(
     component: Ref<ProcessedComputable<CoercableComponent | undefined> | undefined>,
     defaultWrapper = "div"
-): ShallowRef<Component | JSXFunction | "" | null> {
-    const comp = shallowRef<Component | JSXFunction | "" | null>(null);
+): ShallowRef<Component | "" | null> {
+    const comp = shallowRef<Component | "" | null>(null);
     watchEffect(() => {
         const currComponent = unwrapRef(component);
         comp.value = currComponent == null ? null : coerceComponent(currComponent, defaultWrapper);

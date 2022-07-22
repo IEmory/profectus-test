@@ -1,31 +1,24 @@
 import Select from "components/fields/Select.vue";
-import {
-    CoercableComponent,
-    Component,
-    GatherProps,
-    getUniqueID,
-    jsx,
-    Replace,
-    setDefault,
-    StyleValue,
-    Visibility
-} from "features/feature";
+import type { CoercableComponent, OptionsFunc, Replace, StyleValue } from "features/feature";
+import { Component, GatherProps, getUniqueID, jsx, setDefault, Visibility } from "features/feature";
 import MilestoneComponent from "features/milestones/Milestone.vue";
 import { globalBus } from "game/events";
 import "game/notifications";
-import { makePersistent, Persistent, PersistentState } from "game/persistence";
+import type { Persistent } from "game/persistence";
+import { persistent } from "game/persistence";
+import player from "game/player";
 import settings, { registerSettingField } from "game/settings";
 import { camelToTitle } from "util/common";
-import {
+import type {
     Computable,
     GetComputableType,
     GetComputableTypeWithDefault,
-    processComputable,
     ProcessedComputable
 } from "util/computed";
+import { processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
 import { coerceComponent, isCoercableComponent } from "util/vue";
-import { computed, Ref, unref, watchEffect } from "vue";
+import { computed, unref, watchEffect } from "vue";
 import { useToast } from "vue-toastification";
 
 const toast = useToast();
@@ -56,9 +49,9 @@ export interface MilestoneOptions {
     onComplete?: VoidFunction;
 }
 
-export interface BaseMilestone extends Persistent<boolean> {
+export interface BaseMilestone {
     id: string;
-    earned: Ref<boolean>;
+    earned: Persistent<boolean>;
     complete: VoidFunction;
     type: typeof MilestoneType;
     [Component]: typeof MilestoneComponent;
@@ -83,18 +76,18 @@ export type GenericMilestone = Replace<
 >;
 
 export function createMilestone<T extends MilestoneOptions>(
-    optionsFunc: () => T & ThisType<Milestone<T>>
+    optionsFunc?: OptionsFunc<T, BaseMilestone, GenericMilestone>
 ): Milestone<T> {
+    const earned = persistent<boolean>(false);
     return createLazyProxy(() => {
-        const milestone: T & Partial<BaseMilestone> = optionsFunc();
-        makePersistent<boolean>(milestone, false);
+        const milestone = optionsFunc?.() ?? ({} as ReturnType<NonNullable<typeof optionsFunc>>);
         milestone.id = getUniqueID("milestone-");
         milestone.type = MilestoneType;
         milestone[Component] = MilestoneComponent;
 
-        milestone.earned = milestone[PersistentState];
+        milestone.earned = earned;
         milestone.complete = function () {
-            milestone[PersistentState].value = true;
+            earned.value = true;
         };
 
         processComputable(milestone as T, "visibility");
@@ -140,6 +133,7 @@ export function createMilestone<T extends MilestoneOptions>(
         if (milestone.shouldEarn) {
             const genericMilestone = milestone as GenericMilestone;
             watchEffect(() => {
+                if (settings.active !== player.id) return;
                 if (
                     !genericMilestone.earned.value &&
                     unref(genericMilestone.visibility) === Visibility.Visible &&

@@ -19,13 +19,13 @@
         @mousedown="(e: MouseEvent) => mouseDown(e)"
         @touchstart="(e: TouchEvent) => mouseDown(e)"
         @mouseup="() => endDragging(dragging)"
-        @touchend="() => endDragging(dragging)"
+        @touchend.passive="() => endDragging(dragging)"
         @mouseleave="() => endDragging(dragging)"
     >
         <svg class="stage" width="100%" height="100%">
             <g class="g1">
                 <transition-group name="link" appear>
-                    <g v-for="(link, i) in links || []" :key="i">
+                    <g v-for="(link, i) in unref(links) || []" :key="i">
                         <BoardLinkVue :link="link" />
                     </g>
                 </transition-group>
@@ -38,8 +38,8 @@
                             :dragged="dragged"
                             :hasDragged="hasDragged"
                             :receivingNode="receivingNode?.id === node.id"
-                            :selectedNode="selectedNode"
-                            :selectedAction="selectedAction"
+                            :selectedNode="unref(selectedNode)"
+                            :selectedAction="unref(selectedAction)"
                             @mouseDown="mouseDown"
                             @endDragging="endDragging"
                         />
@@ -51,15 +51,36 @@
 </template>
 
 <script setup lang="ts">
-import { BoardNode, GenericBoard, getNodeProperty } from "features/boards/board";
-import { FeatureComponent, Visibility } from "features/feature";
+import type {
+    BoardData,
+    BoardNode,
+    BoardNodeLink,
+    GenericBoardNodeAction,
+    GenericNodeType
+} from "features/boards/board";
+import { getNodeProperty } from "features/boards/board";
+import type { StyleValue } from "features/feature";
+import { Visibility } from "features/feature";
 import { PersistentState } from "game/persistence";
-import { computed, ref, toRefs } from "vue";
+import type { ProcessedComputable } from "util/computed";
+import { computed, ref, Ref, toRefs, unref } from "vue";
 import panZoom from "vue-panzoom";
 import BoardLinkVue from "./BoardLink.vue";
 import BoardNodeVue from "./BoardNode.vue";
 
-const _props = defineProps<FeatureComponent<GenericBoard>>();
+const _props = defineProps<{
+    nodes: Ref<BoardNode[]>;
+    types: Record<string, GenericNodeType>;
+    [PersistentState]: Ref<BoardData>;
+    visibility: ProcessedComputable<Visibility>;
+    width?: ProcessedComputable<string>;
+    height?: ProcessedComputable<string>;
+    style?: ProcessedComputable<StyleValue>;
+    classes?: ProcessedComputable<Record<string, boolean>>;
+    links: Ref<BoardNodeLink[] | null>;
+    selectedAction: Ref<GenericBoardNodeAction | null>;
+    selectedNode: Ref<BoardNode | null>;
+}>();
 const props = toRefs(_props);
 
 const lastMousePosition = ref({ x: 0, y: 0 });

@@ -1,34 +1,19 @@
 import BarComponent from "features/bars/Bar.vue";
-import {
-    CoercableComponent,
-    Component,
-    GatherProps,
-    getUniqueID,
-    Replace,
-    setDefault,
-    StyleValue,
-    Visibility
-} from "features/feature";
-import { DecimalSource } from "util/bignum";
-import {
+import type { CoercableComponent, OptionsFunc, Replace, StyleValue } from "features/feature";
+import { Component, GatherProps, getUniqueID, setDefault, Visibility } from "features/feature";
+import type { DecimalSource } from "util/bignum";
+import { Direction } from "util/common";
+import type {
     Computable,
     GetComputableType,
     GetComputableTypeWithDefault,
-    processComputable,
     ProcessedComputable
 } from "util/computed";
+import { processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
 import { unref } from "vue";
 
 export const BarType = Symbol("Bar");
-
-export enum Direction {
-    Up = "Up",
-    Down = "Down",
-    Left = "Left",
-    Right = "Right",
-    Default = "Up"
-}
 
 export interface BarOptions {
     visibility?: Computable<Visibility>;
@@ -79,9 +64,11 @@ export type GenericBar = Replace<
     }
 >;
 
-export function createBar<T extends BarOptions>(optionsFunc: () => T & ThisType<Bar<T>>): Bar<T> {
+export function createBar<T extends BarOptions>(
+    optionsFunc: OptionsFunc<T, BaseBar, GenericBar>
+): Bar<T> {
     return createLazyProxy(() => {
-        const bar: T & Partial<BaseBar> = optionsFunc();
+        const bar = optionsFunc();
         bar.id = getUniqueID("bar-");
         bar.type = BarType;
         bar[Component] = BarComponent;

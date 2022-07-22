@@ -1,29 +1,30 @@
-import UpgradeComponent from "features/upgrades/Upgrade.vue";
+import type { CoercableComponent, OptionsFunc, Replace, StyleValue } from "features/feature";
 import {
-    CoercableComponent,
     Component,
     findFeatures,
     GatherProps,
     getUniqueID,
-    Replace,
     setDefault,
-    StyleValue,
     Visibility
 } from "features/feature";
-import { Resource } from "features/resources/resource";
-import { GenericLayer } from "game/layers";
-import Decimal, { DecimalSource } from "util/bignum";
+import type { Resource } from "features/resources/resource";
+import UpgradeComponent from "features/upgrades/Upgrade.vue";
+import type { GenericLayer } from "game/layers";
+import type { Persistent } from "game/persistence";
+import { persistent } from "game/persistence";
+import type { DecimalSource } from "util/bignum";
+import Decimal from "util/bignum";
 import { isFunction } from "util/common";
-import {
+import type {
     Computable,
     GetComputableType,
     GetComputableTypeWithDefault,
-    processComputable,
     ProcessedComputable
 } from "util/computed";
+import { processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
-import { computed, Ref, unref } from "vue";
-import { Persistent, makePersistent, PersistentState } from "game/persistence";
+import type { Ref } from "vue";
+import { computed, unref } from "vue";
 
 export const UpgradeType = Symbol("Upgrade");
 
@@ -46,9 +47,9 @@ export interface UpgradeOptions {
     onPurchase?: VoidFunction;
 }
 
-export interface BaseUpgrade extends Persistent<boolean> {
+export interface BaseUpgrade {
     id: string;
-    bought: Ref<boolean>;
+    bought: Persistent<boolean>;
     canPurchase: Ref<boolean>;
     purchase: VoidFunction;
     type: typeof UpgradeType;
@@ -78,11 +79,11 @@ export type GenericUpgrade = Replace<
 >;
 
 export function createUpgrade<T extends UpgradeOptions>(
-    optionsFunc: () => T & ThisType<Upgrade<T>>
+    optionsFunc: OptionsFunc<T, BaseUpgrade, GenericUpgrade>
 ): Upgrade<T> {
+    const bought = persistent<boolean>(false);
     return createLazyProxy(() => {
-        const upgrade: T & Partial<BaseUpgrade> = optionsFunc();
-        makePersistent<boolean>(upgrade, false);
+        const upgrade = optionsFunc();
         upgrade.id = getUniqueID("upgrade-");
         upgrade.type = UpgradeType;
         upgrade[Component] = UpgradeComponent;
@@ -94,7 +95,7 @@ export function createUpgrade<T extends UpgradeOptions>(
             );
         }
 
-        upgrade.bought = upgrade[PersistentState];
+        upgrade.bought = bought;
         if (upgrade.canAfford == null) {
             upgrade.canAfford = computed(() => {
                 const genericUpgrade = upgrade as GenericUpgrade;
@@ -124,7 +125,7 @@ export function createUpgrade<T extends UpgradeOptions>(
                     unref(genericUpgrade.cost)
                 );
             }
-            genericUpgrade[PersistentState].value = true;
+            bought.value = true;
             genericUpgrade.onPurchase?.();
         };
 

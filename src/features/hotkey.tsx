@@ -1,17 +1,18 @@
 import { hasWon } from "data/projEntry";
+import type { OptionsFunc, Replace } from "features/feature";
+import { findFeatures, jsx, setDefault } from "features/feature";
 import { globalBus } from "game/events";
 import player from "game/player";
 import { registerInfoComponent } from "game/settings";
-import {
+import type {
     Computable,
-    GetComputableTypeWithDefault,
     GetComputableType,
-    ProcessedComputable,
-    processComputable
+    GetComputableTypeWithDefault,
+    ProcessedComputable
 } from "util/computed";
+import { processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
 import { shallowReactive, unref } from "vue";
-import { findFeatures, jsx, Replace, setDefault } from "./feature";
 
 export const hotkeys: Record<string, GenericHotkey | undefined> = shallowReactive({});
 export const HotkeyType = Symbol("Hotkey");
@@ -43,10 +44,10 @@ export type GenericHotkey = Replace<
 >;
 
 export function createHotkey<T extends HotkeyOptions>(
-    optionsFunc: () => T & ThisType<Hotkey<T>>
+    optionsFunc: OptionsFunc<T, BaseHotkey, GenericHotkey>
 ): Hotkey<T> {
     return createLazyProxy(() => {
-        const hotkey: T & Partial<BaseHotkey> = optionsFunc();
+        const hotkey = optionsFunc();
         hotkey.type = HotkeyType;
 
         processComputable(hotkey as T, "enabled");

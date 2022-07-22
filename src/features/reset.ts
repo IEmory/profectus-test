@@ -1,17 +1,14 @@
-import { getUniqueID, Replace } from "features/feature";
+import type { OptionsFunc, Replace } from "features/feature";
+import { getUniqueID } from "features/feature";
 import { globalBus } from "game/events";
-import { GenericLayer } from "game/layers";
-import {
-    DefaultValue,
-    Persistent,
-    persistent,
-    PersistentRef,
-    PersistentState
-} from "game/persistence";
+import type { BaseLayer } from "game/layers";
+import type { Persistent } from "game/persistence";
+import { DefaultValue, persistent, PersistentState } from "game/persistence";
+import type { Unsubscribe } from "nanoevents";
 import Decimal from "util/bignum";
-import { Computable, GetComputableType, processComputable } from "util/computed";
+import type { Computable, GetComputableType } from "util/computed";
+import { processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
-import { Unsubscribe } from "nanoevents";
 import { isRef, unref } from "vue";
 
 export const ResetType = Symbol("Reset");
@@ -37,10 +34,10 @@ export type Reset<T extends ResetOptions> = Replace<
 export type GenericReset = Reset<ResetOptions>;
 
 export function createReset<T extends ResetOptions>(
-    optionsFunc: () => T & ThisType<Reset<T>>
+    optionsFunc: OptionsFunc<T, BaseReset, GenericReset>
 ): Reset<T> {
     return createLazyProxy(() => {
-        const reset: T & Partial<BaseReset> = optionsFunc();
+        const reset = optionsFunc();
         reset.id = getUniqueID("reset-");
         reset.type = ResetType;
 
@@ -70,10 +67,15 @@ export function createReset<T extends ResetOptions>(
 }
 
 const listeners: Record<string, Unsubscribe | undefined> = {};
-export function trackResetTime(layer: GenericLayer, reset: GenericReset): PersistentRef<Decimal> {
+export function trackResetTime(layer: BaseLayer, reset: GenericReset): Persistent<Decimal> {
     const resetTime = persistent<Decimal>(new Decimal(0));
-    listeners[layer.id] = layer.on("preUpdate", diff => {
-        resetTime.value = Decimal.add(resetTime.value, diff);
+    globalBus.on("addLayer", layerBeingAdded => {
+        if (layer === layerBeingAdded) {
+            listeners[layer.id]?.();
+            listeners[layer.id] = layer.on("preUpdate", diff => {
+                resetTime.value = Decimal.add(resetTime.value, diff);
+            });
+        }
     });
     globalBus.on("reset", currentReset => {
         if (currentReset === reset) {

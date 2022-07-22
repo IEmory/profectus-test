@@ -4,15 +4,10 @@
         <button class="layer-tab minimized" v-if="minimized.value" @click="minimized.value = false">
             <div>{{ unref(name) }}</div>
         </button>
-        <div
-            class="layer-tab"
-            :style="unref(style)"
-            :class="[{ showGoBack }, unref(classes)]"
-            v-else
-        >
-            <Links :links="unref(links)">
+        <div class="layer-tab" :class="{ showGoBack }" v-else>
+            <Context @update-nodes="updateNodes">
                 <component :is="component" />
-            </Links>
+            </Context>
         </div>
         <button v-if="unref(minimizable)" class="minimize" @click="minimized.value = true">
             ▼
@@ -21,17 +16,18 @@
 </template>
 
 <script lang="ts">
-import Links from "components/links/Links.vue";
 import projInfo from "data/projInfo.json";
-import { CoercableComponent, StyleValue } from "features/feature";
-import { Link } from "features/links";
-import { PersistentRef } from "game/persistence";
+import type { CoercableComponent } from "features/feature";
+import type { FeatureNode } from "game/layers";
+import type { Persistent } from "game/persistence";
 import player from "game/player";
 import { computeComponent, processedPropType, wrapRef } from "util/vue";
-import { computed, defineComponent, nextTick, PropType, toRefs, unref, watch } from "vue";
+import type { PropType, Ref } from "vue";
+import { computed, defineComponent, nextTick, toRefs, unref, watch } from "vue";
+import Context from "./Context.vue";
 
 export default defineComponent({
-    components: { Links },
+    components: { Context },
     props: {
         index: {
             type: Number,
@@ -46,11 +42,11 @@ export default defineComponent({
             required: true
         },
         minimized: {
-            type: Object as PropType<PersistentRef<boolean>>,
+            type: Object as PropType<Persistent<boolean>>,
             required: true
         },
         minWidth: {
-            type: processedPropType<number>(Number),
+            type: processedPropType<number | string>(Number, String),
             required: true
         },
         name: {
@@ -58,10 +54,11 @@ export default defineComponent({
             required: true
         },
         color: processedPropType<string>(String),
-        style: processedPropType<StyleValue>(String, Object, Array),
-        classes: processedPropType<Record<string, boolean>>(Object),
-        links: processedPropType<Link[]>(Array),
-        minimizable: processedPropType<boolean>(Boolean)
+        minimizable: processedPropType<boolean>(Boolean),
+        nodes: {
+            type: Object as PropType<Ref<Record<string, FeatureNode | undefined>>>,
+            required: true
+        }
     },
     setup(props) {
         const { display, index, minimized, minWidth, tab } = toRefs(props);
@@ -80,7 +77,15 @@ export default defineComponent({
             updateTab(minimized, minWidth)
         );
 
-        function updateTab(minimized: boolean, minWidth: number) {
+        function updateNodes(nodes: Record<string, FeatureNode | undefined>) {
+            props.nodes.value = nodes;
+        }
+
+        function updateTab(minimized: boolean, minWidth: number | string) {
+            const width =
+                typeof minWidth === "number" || Number.isNaN(parseInt(minWidth))
+                    ? minWidth + "px"
+                    : minWidth;
             const tabValue = tab.value();
             if (tabValue != undefined) {
                 if (minimized) {
@@ -93,7 +98,7 @@ export default defineComponent({
                     tabValue.style.flexGrow = "";
                     tabValue.style.flexShrink = "";
                     tabValue.style.width = "";
-                    tabValue.style.minWidth = tabValue.style.flexBasis = `${minWidth}px`;
+                    tabValue.style.minWidth = tabValue.style.flexBasis = width;
                     tabValue.style.margin = "";
                 }
             }
@@ -102,6 +107,7 @@ export default defineComponent({
         return {
             component,
             showGoBack,
+            updateNodes,
             unref,
             goBack
         };
@@ -175,7 +181,6 @@ export default defineComponent({
     right: 9px;
     z-index: 7;
     line-height: 30px;
-    width: 30px;
     border: none;
     background: var(--background);
     box-shadow: var(--background) 0 2px 3px 5px;
@@ -183,7 +188,6 @@ export default defineComponent({
     color: var(--foreground);
     font-size: 40px;
     cursor: pointer;
-    padding: 0;
     margin-top: -44px;
     margin-right: -30px;
 }
@@ -196,15 +200,19 @@ export default defineComponent({
 }
 
 .goBack {
-    position: absolute;
-    top: 0;
+    position: sticky;
+    top: 6px;
     left: 20px;
-    background-color: transparent;
-    border: 1px solid transparent;
+    line-height: 30px;
+    margin-top: -50px;
+    margin-left: -35px;
+    border: none;
+    background: var(--background);
+    box-shadow: var(--background) 0 2px 3px 5px;
+    border-radius: 50%;
     color: var(--foreground);
     font-size: 40px;
     cursor: pointer;
-    line-height: 40px;
     z-index: 7;
 }
 

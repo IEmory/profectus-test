@@ -4,57 +4,104 @@
         :class="{ shown: isShown }"
         @mouseenter="isHovered = true"
         @mouseleave="isHovered = false"
+        @click.capture="togglePinned"
     >
         <slot />
+        <component v-if="elementComp" :is="elementComp" />
         <transition name="fade">
             <div
                 v-if="isShown"
                 class="tooltip"
                 :class="{
-                    top: unref(top),
-                    left: unref(left),
-                    right: unref(right),
-                    bottom: unref(bottom)
+                    top: unref(direction) === Direction.Up,
+                    left: unref(direction) === Direction.Left,
+                    right: unref(direction) === Direction.Right,
+                    bottom: unref(direction) === Direction.Down,
+                    ...unref(classes)
                 }"
-                :style="{
-                    '--xoffset': unref(xoffset) || '0px',
-                    '--yoffset': unref(yoffset) || '0px'
-                }"
+                :style="[
+                    {
+                        '--xoffset': unref(xoffset) || '0px',
+                        '--yoffset': unref(yoffset) || '0px'
+                    },
+                    unref(style) ?? {}
+                ]"
             >
+                <span v-if="showPin" class="material-icons pinned">push_pin</span>
                 <component v-if="comp" :is="comp" />
             </div>
         </transition>
     </div>
 </template>
 
-<script lang="ts">
-import { CoercableComponent } from "features/feature";
-import { computeOptionalComponent, processedPropType, unwrapRef } from "util/vue";
-import { computed, defineComponent, ref, toRefs, unref } from "vue";
+<script lang="tsx">
+import themes from "data/themes";
+import type { CoercableComponent } from "features/feature";
+import { jsx, StyleValue } from "features/feature";
+import type { Persistent } from "game/persistence";
+import settings from "game/settings";
+import { Direction } from "util/common";
+import type { VueFeature } from "util/vue";
+import {
+    coerceComponent,
+    computeOptionalComponent,
+    processedPropType,
+    renderJSX,
+    unwrapRef
+} from "util/vue";
+import type { Component, PropType } from "vue";
+import { computed, defineComponent, ref, shallowRef, toRefs, unref } from "vue";
 
 export default defineComponent({
     props: {
-        display: processedPropType<CoercableComponent>(Object, String, Function),
-        top: processedPropType<boolean>(Boolean),
-        left: processedPropType<boolean>(Boolean),
-        right: processedPropType<boolean>(Boolean),
-        bottom: processedPropType<boolean>(Boolean),
+        element: Object as PropType<VueFeature>,
+        display: {
+            type: processedPropType<CoercableComponent>(Object, String, Function),
+            required: true
+        },
+        style: processedPropType<StyleValue>(Object, String, Array),
+        classes: processedPropType<Record<string, boolean>>(Object),
+        direction: processedPropType<Direction>(String),
         xoffset: processedPropType<string>(String),
         yoffset: processedPropType<string>(String),
-        force: processedPropType<boolean>(Boolean)
+        pinned: Object as PropType<Persistent<boolean>>
     },
     setup(props) {
-        const { display, force } = toRefs(props);
+        const { element, display, pinned } = toRefs(props);
 
         const isHovered = ref(false);
-        const isShown = computed(() => (unwrapRef(force) || isHovered.value) && comp.value);
+        const isShown = computed(() => (unwrapRef(pinned) || isHovered.value) && comp.value);
         const comp = computeOptionalComponent(display);
 
+        const elementComp = shallowRef<Component | "" | null>(
+            coerceComponent(
+                jsx(() => {
+                    const currComponent = unwrapRef(element);
+                    return currComponent == null ? "" : renderJSX(currComponent);
+                })
+            )
+        );
+
+        function togglePinned(e: MouseEvent) {
+            const isPinned = pinned as unknown as Persistent<boolean> | undefined; // Vue typing :/
+            if (e.shiftKey && isPinned) {
+                isPinned.value = !isPinned.value;
+                e.stopPropagation();
+                e.preventDefault();
+            }
+        }
+
+        const showPin = computed(() => unwrapRef(pinned) && themes[settings.theme].showPin);
+
         return {
+            Direction,
             isHovered,
             isShown,
             comp,
-            unref
+            elementComp,
+            unref,
+            togglePinned,
+            showPin
         };
     }
 });
@@ -65,6 +112,7 @@ export default defineComponent({
     position: relative;
     --xoffset: 0px;
     --yoffset: 0px;
+    text-shadow: none !important;
 }
 
 .tooltip,
@@ -88,6 +136,10 @@ export default defineComponent({
     color: var(--points);
     z-index: 100 !important;
     word-break: break-word;
+}
+
+.tooltip :deep(hr) {
+    margin: var(--feature-margin) 0;
 }
 
 .shown {
@@ -163,5 +215,12 @@ export default defineComponent({
     top: 0;
     margin-top: -10px;
     border-color: transparent transparent var(--tooltip-background) transparent;
+}
+
+.pinned {
+    position: absolute;
+    right: -5px;
+    top: -5px;
+    transform: rotateZ(45deg);
 }
 </style>

@@ -20,7 +20,8 @@
 </template>
 
 <script lang="ts">
-import { CoercableComponent, StyleValue, Visibility } from "features/feature";
+import type { CoercableComponent, StyleValue } from "features/feature";
+import { Visibility } from "features/feature";
 import { getNotifyStyle } from "game/notifications";
 import { computeComponent, processedPropType, unwrapRef } from "util/vue";
 import { computed, defineComponent, toRefs, unref } from "vue";
@@ -105,5 +106,9 @@ export default defineComponent({
 
 :not(.floating) .tabButton:not(.active) {
     border-bottom-color: transparent;
+}
+
+.tabButton > * {
+    pointer-events: none;
 }
 </style>

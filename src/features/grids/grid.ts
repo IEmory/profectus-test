@@ -1,25 +1,19 @@
+import type { CoercableComponent, OptionsFunc, Replace, StyleValue } from "features/feature";
+import { Component, GatherProps, getUniqueID, setDefault, Visibility } from "features/feature";
 import GridComponent from "features/grids/Grid.vue";
-import {
-    CoercableComponent,
-    Component,
-    GatherProps,
-    getUniqueID,
-    Replace,
-    setDefault,
-    StyleValue,
-    Visibility
-} from "features/feature";
+import type { Persistent, State } from "game/persistence";
+import { persistent } from "game/persistence";
 import { isFunction } from "util/common";
-import {
+import type {
     Computable,
     GetComputableType,
     GetComputableTypeWithDefault,
-    processComputable,
     ProcessedComputable
 } from "util/computed";
+import { processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
-import { computed, Ref, unref } from "vue";
-import { State, Persistent, makePersistent, PersistentState } from "game/persistence";
+import type { Ref } from "vue";
+import { computed, unref } from "vue";
 
 export const GridType = Symbol("Grid");
 
@@ -185,7 +179,7 @@ export interface GridCell {
     classes?: Record<string, boolean>;
     title?: CoercableComponent;
     display: CoercableComponent;
-    onClick?: VoidFunction;
+    onClick?: (e?: MouseEvent | TouchEvent) => void;
     onHold?: VoidFunction;
 }
 
@@ -200,16 +194,17 @@ export interface GridOptions {
     getClasses?: CellComputable<Record<string, boolean>>;
     getTitle?: CellComputable<CoercableComponent>;
     getDisplay: CellComputable<CoercableComponent>;
-    onClick?: (id: string | number, state: State) => void;
+    onClick?: (id: string | number, state: State, e?: MouseEvent | TouchEvent) => void;
     onHold?: (id: string | number, state: State) => void;
 }
 
-export interface BaseGrid extends Persistent<Record<string | number, State>> {
+export interface BaseGrid {
     id: string;
     getID: (id: string | number, state: State) => string;
     getState: (id: string | number) => State;
     setState: (id: string | number, state: State) => void;
     cells: Record<string | number, GridCell>;
+    cellState: Persistent<Record<string | number, State>>;
     type: typeof GridType;
     [Component]: typeof GridComponent;
     [GatherProps]: () => Record<string, unknown>;
@@ -241,25 +236,27 @@ export type GenericGrid = Replace<
 >;
 
 export function createGrid<T extends GridOptions>(
-    optionsFunc: () => T & ThisType<Grid<T>>
+    optionsFunc: OptionsFunc<T, BaseGrid, GenericGrid>
 ): Grid<T> {
+    const cellState = persistent<Record<string | number, State>>({});
     return createLazyProxy(() => {
-        const grid: T & Partial<BaseGrid> = optionsFunc();
-        makePersistent(grid, {});
+        const grid = optionsFunc();
         grid.id = getUniqueID("grid-");
         grid[Component] = GridComponent;
+
+        grid.cellState = cellState;
 
         grid.getID = function (this: GenericGrid, cell: string | number) {
             return grid.id + "-" + cell;
         };
         grid.getState = function (this: GenericGrid, cell: string | number) {
-            if (this[PersistentState].value[cell] != undefined) {
-                return this[PersistentState].value[cell];
+            if (this.cellState.value[cell] != undefined) {
+                return cellState.value[cell];
             }
             return this.cells[cell].startState;
         };
         grid.setState = function (this: GenericGrid, cell: string | number, state: State) {
-            this[PersistentState].value[cell] = state;
+            cellState.value[cell] = state;
         };
 
         grid.cells = createGridProxy(grid as GenericGrid);

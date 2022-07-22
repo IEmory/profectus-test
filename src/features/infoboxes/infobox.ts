@@ -1,24 +1,17 @@
+import type { CoercableComponent, OptionsFunc, Replace, StyleValue } from "features/feature";
+import { Component, GatherProps, getUniqueID, setDefault, Visibility } from "features/feature";
 import InfoboxComponent from "features/infoboxes/Infobox.vue";
-import {
-    CoercableComponent,
-    Component,
-    GatherProps,
-    getUniqueID,
-    Replace,
-    setDefault,
-    StyleValue,
-    Visibility
-} from "features/feature";
-import {
+import type { Persistent } from "game/persistence";
+import { persistent } from "game/persistence";
+import type {
     Computable,
     GetComputableType,
     GetComputableTypeWithDefault,
-    processComputable,
     ProcessedComputable
 } from "util/computed";
+import { processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
-import { Ref, unref } from "vue";
-import { Persistent, makePersistent, PersistentState } from "game/persistence";
+import { unref } from "vue";
 
 export const InfoboxType = Symbol("Infobox");
 
@@ -33,9 +26,9 @@ export interface InfoboxOptions {
     display: Computable<CoercableComponent>;
 }
 
-export interface BaseInfobox extends Persistent<boolean> {
+export interface BaseInfobox {
     id: string;
-    collapsed: Ref<boolean>;
+    collapsed: Persistent<boolean>;
     type: typeof InfoboxType;
     [Component]: typeof InfoboxComponent;
     [GatherProps]: () => Record<string, unknown>;
@@ -63,16 +56,16 @@ export type GenericInfobox = Replace<
 >;
 
 export function createInfobox<T extends InfoboxOptions>(
-    optionsFunc: () => T & ThisType<Infobox<T>>
+    optionsFunc: OptionsFunc<T, BaseInfobox, GenericInfobox>
 ): Infobox<T> {
+    const collapsed = persistent<boolean>(false);
     return createLazyProxy(() => {
-        const infobox: T & Partial<BaseInfobox> = optionsFunc();
-        makePersistent<boolean>(infobox, false);
+        const infobox = optionsFunc();
         infobox.id = getUniqueID("infobox-");
         infobox.type = InfoboxType;
         infobox[Component] = InfoboxComponent;
 
-        infobox.collapsed = infobox[PersistentState];
+        infobox.collapsed = collapsed;
 
         processComputable(infobox as T, "visibility");
         setDefault(infobox, "visibility", Visibility.Visible);

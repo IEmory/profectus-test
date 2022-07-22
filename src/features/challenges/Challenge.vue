@@ -12,39 +12,35 @@
             feature: true,
             challenge: true,
             done: unref(completed),
-            canStart: unref(canStart),
+            canStart: unref(canStart) && !unref(maxed),
             maxed: unref(maxed),
             ...unref(classes)
         }"
     >
-        <button class="toggleChallenge" @click="toggle">
+        <button
+            class="toggleChallenge"
+            @click="toggle"
+            :disabled="!unref(canStart) || unref(maxed)"
+        >
             {{ buttonText }}
         </button>
         <component v-if="unref(comp)" :is="unref(comp)" />
         <MarkNode :mark="unref(mark)" />
-        <LinkNode :id="id" />
+        <Node :id="id" />
     </div>
 </template>
 
 <script lang="tsx">
 import "components/common/features.css";
-import { GenericChallenge } from "features/challenges/challenge";
-import { jsx, StyleValue, Visibility } from "features/feature";
+import MarkNode from "components/MarkNode.vue";
+import Node from "components/Node.vue";
+import type { GenericChallenge } from "features/challenges/challenge";
+import type { StyleValue } from "features/feature";
+import { jsx, Visibility } from "features/feature";
 import { getHighNotifyStyle, getNotifyStyle } from "game/notifications";
 import { coerceComponent, isCoercableComponent, processedPropType, unwrapRef } from "util/vue";
-import {
-    Component,
-    computed,
-    defineComponent,
-    PropType,
-    shallowRef,
-    toRefs,
-    unref,
-    UnwrapRef,
-    watchEffect
-} from "vue";
-import LinkNode from "components/links/LinkNode.vue";
-import MarkNode from "components/MarkNode.vue";
+import type { Component, PropType, UnwrapRef } from "vue";
+import { computed, defineComponent, shallowRef, toRefs, unref, watchEffect } from "vue";
 
 export default defineComponent({
     props: {
@@ -91,7 +87,7 @@ export default defineComponent({
     },
     components: {
         MarkNode,
-        LinkNode
+        Node
     },
     setup(props) {
         const { active, maxed, canComplete, display } = toRefs(props);

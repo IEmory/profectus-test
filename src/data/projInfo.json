@@ -1,9 +1,10 @@
 {
-	"title": "Profectus Test",
-	"id": "iemory-profectus-test",
-	"author": "IEmory",
-	"discordName": "The Paper Pilot Community",
-	"discordLink": "https://discord.gg/WzejVAx",
+	"title": "Profectus",
+	"description": "A project made in Profectus",
+	"id": "",
+	"author": "",
+	"discordName": "",
+	"discordLink": "",
 
 	"versionNumber": "0.0",
 	"versionTitle": "Initial Commit",
@@ -17,6 +18,7 @@
 	"initialTabs": [ "main" ],
 
 	"maxTickLength": 3600,
-	"offlineLimit": 0,
-	"enablePausing": true
+	"offlineLimit": 1,
+	"enablePausing": true,
+	"exportEncoding": "base64"
 }

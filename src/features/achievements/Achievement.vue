@@ -18,18 +18,19 @@
     >
         <component v-if="component" :is="component" />
         <MarkNode :mark="unref(mark)" />
-        <LinkNode :id="id" />
+        <Node :id="id" />
     </div>
 </template>
 
 <script lang="ts">
-import { CoercableComponent, Visibility } from "features/feature";
-import { computeOptionalComponent, processedPropType } from "util/vue";
-import { defineComponent, StyleValue, toRefs, unref } from "vue";
-import Tooltip from "components/Tooltip.vue";
-import LinkNode from "components/links/LinkNode.vue";
-import MarkNode from "components/MarkNode.vue";
 import "components/common/features.css";
+import MarkNode from "components/MarkNode.vue";
+import Node from "components/Node.vue";
+import type { CoercableComponent } from "features/feature";
+import { Visibility } from "features/feature";
+import { computeOptionalComponent, processedPropType } from "util/vue";
+import type { StyleValue } from "vue";
+import { defineComponent, toRefs, unref } from "vue";
 
 export default defineComponent({
     props: {
@@ -52,9 +53,8 @@ export default defineComponent({
         }
     },
     components: {
-        LinkNode,
-        MarkNode,
-        Tooltip
+        Node,
+        MarkNode
     },
     setup(props) {
         const { display } = toRefs(props);

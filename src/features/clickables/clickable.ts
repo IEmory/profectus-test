@@ -1,23 +1,15 @@
 import ClickableComponent from "features/clickables/Clickable.vue";
-import {
-    CoercableComponent,
-    Component,
-    GatherProps,
-    getUniqueID,
-    Replace,
-    setDefault,
-    StyleValue,
-    Visibility
-} from "features/feature";
-import { GenericLayer } from "game/layers";
-import { Unsubscribe } from "nanoevents";
-import {
+import type { CoercableComponent, OptionsFunc, Replace, StyleValue } from "features/feature";
+import { Component, GatherProps, getUniqueID, setDefault, Visibility } from "features/feature";
+import type { BaseLayer } from "game/layers";
+import type { Unsubscribe } from "nanoevents";
+import type {
     Computable,
     GetComputableType,
     GetComputableTypeWithDefault,
-    processComputable,
     ProcessedComputable
 } from "util/computed";
+import { processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
 import { computed, unref } from "vue";
 
@@ -37,7 +29,7 @@ export interface ClickableOptions {
           }
     >;
     small?: boolean;
-    onClick?: VoidFunction;
+    onClick?: (e?: MouseEvent | TouchEvent) => void;
     onHold?: VoidFunction;
 }
 
@@ -69,10 +61,10 @@ export type GenericClickable = Replace<
 >;
 
 export function createClickable<T extends ClickableOptions>(
-    optionsFunc: () => T & ThisType<Clickable<T>>
+    optionsFunc?: OptionsFunc<T, BaseClickable, GenericClickable>
 ): Clickable<T> {
     return createLazyProxy(() => {
-        const clickable: T & Partial<BaseClickable> = optionsFunc();
+        const clickable = optionsFunc?.() ?? ({} as ReturnType<NonNullable<typeof optionsFunc>>);
         clickable.id = getUniqueID("clickable-");
         clickable.type = ClickableType;
         clickable[Component] = ClickableComponent;
@@ -88,9 +80,9 @@ export function createClickable<T extends ClickableOptions>(
 
         if (clickable.onClick) {
             const onClick = clickable.onClick.bind(clickable);
-            clickable.onClick = function () {
+            clickable.onClick = function (e) {
                 if (unref(clickable.canClick)) {
-                    onClick();
+                    onClick(e);
                 }
             };
         }
@@ -135,7 +127,7 @@ export function createClickable<T extends ClickableOptions>(
 }
 
 export function setupAutoClick(
-    layer: GenericLayer,
+    layer: BaseLayer,
     clickable: GenericClickable,
     autoActive: Computable<boolean> = true
 ): Unsubscribe {

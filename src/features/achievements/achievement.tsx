@@ -4,23 +4,27 @@ import {
     Component,
     GatherProps,
     getUniqueID,
+    OptionsFunc,
     Replace,
     setDefault,
     StyleValue,
     Visibility
 } from "features/feature";
 import "game/notifications";
-import { Persistent, makePersistent, PersistentState } from "game/persistence";
-import {
+import type { Persistent } from "game/persistence";
+import { persistent } from "game/persistence";
+import player from "game/player";
+import settings from "game/settings";
+import type {
     Computable,
     GetComputableType,
     GetComputableTypeWithDefault,
-    processComputable,
     ProcessedComputable
 } from "util/computed";
+import { processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
 import { coerceComponent } from "util/vue";
-import { Ref, unref, watchEffect } from "vue";
+import { unref, watchEffect } from "vue";
 import { useToast } from "vue-toastification";
 
 const toast = useToast();
@@ -38,9 +42,9 @@ export interface AchievementOptions {
     onComplete?: VoidFunction;
 }
 
-export interface BaseAchievement extends Persistent<boolean> {
+export interface BaseAchievement {
     id: string;
-    earned: Ref<boolean>;
+    earned: Persistent<boolean>;
     complete: VoidFunction;
     type: typeof AchievementType;
     [Component]: typeof AchievementComponent;
@@ -67,18 +71,18 @@ export type GenericAchievement = Replace<
 >;
 
 export function createAchievement<T extends AchievementOptions>(
-    optionsFunc: () => T & ThisType<Achievement<T>>
+    optionsFunc?: OptionsFunc<T, BaseAchievement, GenericAchievement>
 ): Achievement<T> {
+    const earned = persistent<boolean>(false);
     return createLazyProxy(() => {
-        const achievement: T & Partial<BaseAchievement> = optionsFunc();
-        makePersistent<boolean>(achievement, false);
+        const achievement = optionsFunc?.() ?? ({} as ReturnType<NonNullable<typeof optionsFunc>>);
         achievement.id = getUniqueID("achievement-");
         achievement.type = AchievementType;
         achievement[Component] = AchievementComponent;
 
-        achievement.earned = achievement[PersistentState];
+        achievement.earned = earned;
         achievement.complete = function () {
-            achievement[PersistentState].value = true;
+            earned.value = true;
         };
 
         processComputable(achievement as T, "visibility");
@@ -97,6 +101,7 @@ export function createAchievement<T extends AchievementOptions>(
         if (achievement.shouldEarn) {
             const genericAchievement = achievement as GenericAchievement;
             watchEffect(() => {
+                if (settings.active !== player.id) return;
                 if (
                     !genericAchievement.earned.value &&
                     unref(genericAchievement.visibility) === Visibility.Visible &&

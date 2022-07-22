@@ -1,25 +1,21 @@
 <template>
-    <Tooltip
+    <div
         v-if="unref(visibility) !== Visibility.None"
-        v-bind="tooltipToBind && gatherTooltipProps(tooltipToBind)"
-        :display="tooltipDisplay"
-        :force="forceTooltip"
         :style="{ visibility: unref(visibility) === Visibility.Hidden ? 'hidden' : undefined }"
         :class="{
             treeNode: true,
             can: unref(canClick),
-            small: unref(small),
             ...unref(classes)
         }"
+        @click="onClick"
+        @mousedown="start"
+        @mouseleave="stop"
+        @mouseup="stop"
+        @touchstart.passive="start"
+        @touchend.passive="stop"
+        @touchcancel.passive="stop"
     >
-        <button
-            @click="click"
-            @mousedown="start"
-            @mouseleave="stop"
-            @mouseup="stop"
-            @touchstart="start"
-            @touchend="stop"
-            @touchcancel="stop"
+        <div
             :style="[
                 {
                     backgroundColor: unref(color),
@@ -31,36 +27,25 @@
             ]"
         >
             <component :is="unref(comp)" />
-        </button>
+        </div>
         <MarkNode :mark="unref(mark)" />
-        <LinkNode :id="id" />
-    </Tooltip>
+        <Node :id="id" />
+    </div>
 </template>
 
 <script lang="ts">
-import LinkNode from "components/links/LinkNode.vue";
 import MarkNode from "components/MarkNode.vue";
-import TooltipVue from "components/Tooltip.vue";
-import { CoercableComponent, StyleValue, Visibility } from "features/feature";
-import { gatherTooltipProps, Tooltip } from "features/tooltip";
-import { ProcessedComputable } from "util/computed";
+import Node from "components/Node.vue";
+import type { CoercableComponent, StyleValue } from "features/feature";
+import { Visibility } from "features/feature";
 import {
     computeOptionalComponent,
     isCoercableComponent,
     processedPropType,
-    setupHoldToClick,
-    unwrapRef
+    setupHoldToClick
 } from "util/vue";
-import {
-    computed,
-    defineComponent,
-    PropType,
-    Ref,
-    shallowRef,
-    toRefs,
-    unref,
-    watchEffect
-} from "vue";
+import type { PropType } from "vue";
+import { defineComponent, toRefs, unref } from "vue";
 
 export default defineComponent({
     props: {
@@ -71,15 +56,10 @@ export default defineComponent({
         },
         style: processedPropType<StyleValue>(String, Object, Array),
         classes: processedPropType<Record<string, boolean>>(Object),
-        tooltip: processedPropType<CoercableComponent | Tooltip>(Object, String, Function),
-        onClick: Function as PropType<VoidFunction>,
+        onClick: Function as PropType<(e?: MouseEvent | TouchEvent) => void>,
         onHold: Function as PropType<VoidFunction>,
         color: processedPropType<string>(String),
         glowColor: processedPropType<string>(String),
-        forceTooltip: {
-            type: Object as PropType<Ref<boolean>>,
-            required: true
-        },
         canClick: {
             type: processedPropType<boolean>(Boolean),
             required: true
@@ -88,59 +68,25 @@ export default defineComponent({
         id: {
             type: String,
             required: true
-        },
-        small: processedPropType<boolean>(Boolean)
+        }
     },
     components: {
-        Tooltip: TooltipVue,
         MarkNode,
-        LinkNode
+        Node
     },
     setup(props) {
-        const { tooltip, forceTooltip, onClick, onHold, display } = toRefs(props);
-
-        function click(e: MouseEvent) {
-            if (e.shiftKey && tooltip) {
-                forceTooltip.value = !forceTooltip.value;
-            } else {
-                unref(onClick)?.();
-            }
-        }
+        const { onClick, onHold, display } = toRefs(props);
 
         const comp = computeOptionalComponent(display);
-        const tooltipDisplay = shallowRef<ProcessedComputable<CoercableComponent> | undefined>(
-            undefined
-        );
-        watchEffect(() => {
-            const currTooltip = unwrapRef(tooltip);
-
-            if (typeof currTooltip === "object" && !isCoercableComponent(currTooltip)) {
-                tooltipDisplay.value = currTooltip.display;
-                return;
-            }
-            tooltipDisplay.value = currTooltip;
-        });
-        const tooltipToBind = computed(() => {
-            const currTooltip = unwrapRef(tooltip);
-
-            if (typeof currTooltip === "object" && !isCoercableComponent(currTooltip)) {
-                return currTooltip;
-            }
-            return null;
-        });
 
         const { start, stop } = setupHoldToClick(onClick, onHold);
 
         return {
-            click,
             start,
             stop,
             comp,
-            tooltipDisplay,
-            tooltipToBind,
             unref,
             Visibility,
-            gatherTooltipProps,
             isCoercableComponent
         };
     }
@@ -156,7 +102,7 @@ export default defineComponent({
     margin: 0 10px 0 10px;
 }
 
-.treeNode button {
+.treeNode > *:first-child {
     width: 100%;
     height: 100%;
     border: 2px solid rgba(0, 0, 0, 0.125);
@@ -166,19 +112,10 @@ export default defineComponent({
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.25);
     box-shadow: -4px -4px 4px rgba(0, 0, 0, 0.25) inset, 0px 0px 20px var(--background);
     text-transform: capitalize;
+    display: flex;
 }
 
-.treeNode.small {
-    height: 60px;
-    width: 60px;
-}
-
-.treeNode.small button {
-    font-size: 30px;
-}
-
-.ghost {
-    visibility: hidden;
+.treeNode > *:first-child > * {
     pointer-events: none;
 }
 </style>

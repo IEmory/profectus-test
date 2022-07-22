@@ -1,4 +1,4 @@
-import Decimal from "./bignum";
+import Decimal from "util/bignum";
 
 export const ProxyState = Symbol("ProxyState");
 export const ProxyPath = Symbol("ProxyPath");
@@ -17,15 +17,18 @@ export type ProxiedWithState<T> = NonNullable<T> extends Record<PropertyKey, any
 
 // Takes a function that returns an object and pretends to be that object
 // Note that the object is lazily calculated
-export function createLazyProxy<T extends object>(objectFunc: () => T): T {
-    const obj: T | Record<string, never> = {};
+export function createLazyProxy<T extends object, S>(
+    objectFunc: (baseObject: S) => T & S,
+    baseObject: S = {} as S
+): T {
+    const obj: S & Partial<T> = baseObject;
     let calculated = false;
     function calculateObj(): T {
         if (!calculated) {
-            Object.assign(obj, objectFunc());
+            Object.assign(obj, objectFunc(obj));
             calculated = true;
         }
-        return obj as T;
+        return obj as S & T;
     }
 
     return new Proxy(obj, {
@@ -36,9 +39,11 @@ export function createLazyProxy<T extends object>(objectFunc: () => T): T {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return (calculateObj() as any)[key];
         },
-        set() {
-            console.error("Layers and features are shallow readonly");
-            return false;
+        set(target, key, value) {
+            // TODO give warning about this? It should only be done with caution
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (calculateObj() as any)[key] = value;
+            return true;
         },
         has(target, key) {
             if (key === ProxyState) {
@@ -51,10 +56,10 @@ export function createLazyProxy<T extends object>(objectFunc: () => T): T {
         },
         getOwnPropertyDescriptor(target, key) {
             if (!calculated) {
-                Object.assign(obj, objectFunc());
+                Object.assign(obj, objectFunc(obj));
                 calculated = true;
             }
             return Object.getOwnPropertyDescriptor(target, key);
         }
-    }) as T;
+    }) as S & T;
 }

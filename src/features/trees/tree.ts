@@ -1,30 +1,23 @@
-import {
-    CoercableComponent,
-    Component,
-    GatherProps,
-    getUniqueID,
-    Replace,
-    setDefault,
-    StyleValue,
-    Visibility
-} from "features/feature";
-import { Link } from "features/links";
-import { GenericReset } from "features/reset";
-import { displayResource, Resource } from "features/resources/resource";
-import { Tooltip } from "features/tooltip";
+import type { CoercableComponent, OptionsFunc, Replace, StyleValue } from "features/feature";
+import { Component, GatherProps, getUniqueID, setDefault, Visibility } from "features/feature";
+import type { Link } from "features/links/links";
+import type { GenericReset } from "features/reset";
+import type { Resource } from "features/resources/resource";
+import { displayResource } from "features/resources/resource";
 import TreeComponent from "features/trees/Tree.vue";
-import { persistent } from "game/persistence";
-import Decimal, { DecimalSource, format, formatWhole } from "util/bignum";
-import {
+import TreeNodeComponent from "features/trees/TreeNode.vue";
+import type { DecimalSource } from "util/bignum";
+import Decimal, { format, formatWhole } from "util/bignum";
+import type {
     Computable,
-    convertComputable,
     GetComputableType,
     GetComputableTypeWithDefault,
-    processComputable,
     ProcessedComputable
 } from "util/computed";
+import { convertComputable, processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
-import { computed, ref, Ref, unref } from "vue";
+import type { Ref } from "vue";
+import { computed, ref, shallowRef, unref } from "vue";
 
 export const TreeNodeType = Symbol("TreeNode");
 export const TreeType = Symbol("Tree");
@@ -34,20 +27,20 @@ export interface TreeNodeOptions {
     canClick?: Computable<boolean>;
     color?: Computable<string>;
     display?: Computable<CoercableComponent>;
-    tooltip?: Computable<string | Tooltip>;
     glowColor?: Computable<string>;
     classes?: Computable<Record<string, boolean>>;
     style?: Computable<StyleValue>;
     mark?: Computable<boolean | string>;
     reset?: GenericReset;
-    onClick?: VoidFunction;
+    onClick?: (e?: MouseEvent | TouchEvent) => void;
     onHold?: VoidFunction;
 }
 
 export interface BaseTreeNode {
     id: string;
-    forceTooltip: Ref<boolean>;
     type: typeof TreeNodeType;
+    [Component]: typeof TreeNodeComponent;
+    [GatherProps]: () => Record<string, unknown>;
 }
 
 export type TreeNode<T extends TreeNodeOptions> = Replace<
@@ -61,7 +54,6 @@ export type TreeNode<T extends TreeNodeOptions> = Replace<
         classes: GetComputableType<T["classes"]>;
         style: GetComputableType<T["style"]>;
         mark: GetComputableType<T["mark"]>;
-        tooltip: GetComputableType<T["tooltip"]>;
     }
 >;
 
@@ -74,19 +66,13 @@ export type GenericTreeNode = Replace<
 >;
 
 export function createTreeNode<T extends TreeNodeOptions>(
-    optionsFunc: () => T & ThisType<TreeNode<T>>
+    optionsFunc?: OptionsFunc<T, BaseTreeNode, GenericTreeNode>
 ): TreeNode<T> {
     return createLazyProxy(() => {
-        const treeNode: T & Partial<BaseTreeNode> = optionsFunc();
+        const treeNode = optionsFunc?.() ?? ({} as ReturnType<NonNullable<typeof optionsFunc>>);
         treeNode.id = getUniqueID("treeNode-");
         treeNode.type = TreeNodeType;
-
-        if (treeNode.tooltip) {
-            treeNode.forceTooltip = persistent(false);
-        } else {
-            // If we don't have a tooltip, no point in making this persistent
-            treeNode.forceTooltip = ref(false);
-        }
+        treeNode[Component] = TreeNodeComponent;
 
         processComputable(treeNode as T, "visibility");
         setDefault(treeNode, "visibility", Visibility.Visible);
@@ -94,7 +80,6 @@ export function createTreeNode<T extends TreeNodeOptions>(
         setDefault(treeNode, "canClick", true);
         processComputable(treeNode as T, "color");
         processComputable(treeNode as T, "display");
-        processComputable(treeNode as T, "tooltip");
         processComputable(treeNode as T, "glowColor");
         processComputable(treeNode as T, "classes");
         processComputable(treeNode as T, "style");
@@ -116,6 +101,35 @@ export function createTreeNode<T extends TreeNodeOptions>(
                 }
             };
         }
+
+        treeNode[GatherProps] = function (this: GenericTreeNode) {
+            const {
+                display,
+                visibility,
+                style,
+                classes,
+                onClick,
+                onHold,
+                color,
+                glowColor,
+                canClick,
+                mark,
+                id
+            } = this;
+            return {
+                display,
+                visibility,
+                style,
+                classes,
+                onClick,
+                onHold,
+                color,
+                glowColor,
+                canClick,
+                mark,
+                id
+            };
+        };
 
         return treeNode as unknown as TreeNode<T>;
     });
@@ -166,16 +180,16 @@ export type GenericTree = Replace<
 >;
 
 export function createTree<T extends TreeOptions>(
-    optionsFunc: () => T & ThisType<Tree<T>>
+    optionsFunc: OptionsFunc<T, BaseTree, GenericTree>
 ): Tree<T> {
     return createLazyProxy(() => {
-        const tree: T & Partial<BaseTree> = optionsFunc();
+        const tree = optionsFunc();
         tree.id = getUniqueID("tree-");
         tree.type = TreeType;
         tree[Component] = TreeComponent;
 
         tree.isResetting = ref(false);
-        tree.resettingNode = ref(null);
+        tree.resettingNode = shallowRef(null);
 
         tree.reset = function (node) {
             const genericTree = tree as GenericTree;
@@ -199,8 +213,8 @@ export function createTree<T extends TreeOptions>(
         processComputable(tree as T, "branches");
 
         tree[GatherProps] = function (this: GenericTree) {
-            const { nodes, leftSideNodes, rightSideNodes } = this;
-            return { nodes, leftSideNodes, rightSideNodes };
+            const { nodes, leftSideNodes, rightSideNodes, branches } = this;
+            return { nodes, leftSideNodes, rightSideNodes, branches };
         };
 
         return tree as unknown as Tree<T>;
@@ -276,7 +290,7 @@ export function createResourceTooltip(
     const req = convertComputable(requirement);
     return computed(() => {
         if (requiredResource == null || Decimal.gte(resource.value, unref(req))) {
-            return displayResource(resource);
+            return displayResource(resource) + " " + resource.displayName;
         }
         return `Reach ${
             Decimal.eq(requiredResource.precision, 0)

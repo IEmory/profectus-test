@@ -9,9 +9,9 @@
         @mousedown="start"
         @mouseleave="stop"
         @mouseup="stop"
-        @touchstart="start"
-        @touchend="stop"
-        @touchcancel="stop"
+        @touchstart.passive="start"
+        @touchend.passive="stop"
+        @touchcancel.passive="stop"
         :class="{
             feature: true,
             clickable: true,
@@ -23,16 +23,17 @@
     >
         <component v-if="unref(comp)" :is="unref(comp)" />
         <MarkNode :mark="unref(mark)" />
-        <LinkNode :id="id" />
+        <Node :id="id" />
     </button>
 </template>
 
 <script lang="tsx">
 import "components/common/features.css";
-import LinkNode from "components/links/LinkNode.vue";
 import MarkNode from "components/MarkNode.vue";
-import { GenericClickable } from "features/clickables/clickable";
-import { jsx, StyleValue, Visibility } from "features/feature";
+import Node from "components/Node.vue";
+import type { GenericClickable } from "features/clickables/clickable";
+import type { StyleValue } from "features/feature";
+import { jsx, Visibility } from "features/feature";
 import {
     coerceComponent,
     isCoercableComponent,
@@ -40,16 +41,8 @@ import {
     setupHoldToClick,
     unwrapRef
 } from "util/vue";
-import {
-    Component,
-    defineComponent,
-    PropType,
-    shallowRef,
-    toRefs,
-    unref,
-    UnwrapRef,
-    watchEffect
-} from "vue";
+import type { Component, PropType, UnwrapRef } from "vue";
+import { defineComponent, shallowRef, toRefs, unref, watchEffect } from "vue";
 
 export default defineComponent({
     props: {
@@ -67,7 +60,7 @@ export default defineComponent({
         },
         style: processedPropType<StyleValue>(Object, String, Array),
         classes: processedPropType<Record<string, boolean>>(Object),
-        onClick: Function as PropType<VoidFunction>,
+        onClick: Function as PropType<(e?: MouseEvent | TouchEvent) => void>,
         onHold: Function as PropType<VoidFunction>,
         canClick: {
             type: processedPropType<boolean>(Boolean),
@@ -81,7 +74,7 @@ export default defineComponent({
         }
     },
     components: {
-        LinkNode,
+        Node,
         MarkNode
     },
     setup(props) {
@@ -137,5 +130,9 @@ export default defineComponent({
 
 .clickable.small {
     min-height: unset;
+}
+
+.clickable > * {
+    pointer-events: none;
 }
 </style>

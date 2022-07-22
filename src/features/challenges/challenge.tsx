@@ -1,32 +1,26 @@
 import { isArray } from "@vue/shared";
 import Toggle from "components/fields/Toggle.vue";
 import ChallengeComponent from "features/challenges/Challenge.vue";
-import {
-    CoercableComponent,
-    Component,
-    GatherProps,
-    getUniqueID,
-    jsx,
-    Replace,
-    setDefault,
-    StyleValue,
-    Visibility
-} from "features/feature";
-import { GenericReset } from "features/reset";
-import { Resource } from "features/resources/resource";
+import type { CoercableComponent, OptionsFunc, Replace, StyleValue } from "features/feature";
+import { Component, GatherProps, getUniqueID, jsx, setDefault, Visibility } from "features/feature";
+import type { GenericReset } from "features/reset";
+import type { Resource } from "features/resources/resource";
 import { globalBus } from "game/events";
-import { persistent, PersistentRef } from "game/persistence";
+import type { Persistent } from "game/persistence";
+import { persistent } from "game/persistence";
 import settings, { registerSettingField } from "game/settings";
-import Decimal, { DecimalSource } from "util/bignum";
-import {
+import type { DecimalSource } from "util/bignum";
+import Decimal from "util/bignum";
+import type {
     Computable,
     GetComputableType,
     GetComputableTypeWithDefault,
-    processComputable,
     ProcessedComputable
 } from "util/computed";
+import { processComputable } from "util/computed";
 import { createLazyProxy } from "util/proxies";
-import { computed, Ref, unref, watch, WatchStopHandle } from "vue";
+import type { Ref, WatchStopHandle } from "vue";
+import { computed, unref, watch } from "vue";
 
 export const ChallengeType = Symbol("ChallengeType");
 
@@ -58,10 +52,10 @@ export interface ChallengeOptions {
 
 export interface BaseChallenge {
     id: string;
-    completions: PersistentRef<DecimalSource>;
+    completions: Persistent<DecimalSource>;
     completed: Ref<boolean>;
     maxed: Ref<boolean>;
-    active: PersistentRef<boolean>;
+    active: Persistent<boolean>;
     toggle: VoidFunction;
     complete: (remainInChallenge?: boolean) => void;
     type: typeof ChallengeType;
@@ -73,7 +67,7 @@ export type Challenge<T extends ChallengeOptions> = Replace<
     T & BaseChallenge,
     {
         visibility: GetComputableTypeWithDefault<T["visibility"], Visibility.Visible>;
-        canStart: GetComputableTypeWithDefault<T["canStart"], Ref<boolean>>;
+        canStart: GetComputableTypeWithDefault<T["canStart"], true>;
         canComplete: GetComputableTypeWithDefault<T["canComplete"], Ref<boolean>>;
         completionLimit: GetComputableTypeWithDefault<T["completionLimit"], 1>;
         mark: GetComputableTypeWithDefault<T["mark"], Ref<boolean>>;
@@ -96,10 +90,12 @@ export type GenericChallenge = Replace<
 >;
 
 export function createChallenge<T extends ChallengeOptions>(
-    optionsFunc: () => T & ThisType<Challenge<T>>
+    optionsFunc: OptionsFunc<T, BaseChallenge, GenericChallenge>
 ): Challenge<T> {
+    const completions = persistent(0);
+    const active = persistent(false);
     return createLazyProxy(() => {
-        const challenge: T & Partial<BaseChallenge> = optionsFunc();
+        const challenge = optionsFunc();
 
         if (
             challenge.canComplete == null &&
@@ -116,8 +112,8 @@ export function createChallenge<T extends ChallengeOptions>(
         challenge.type = ChallengeType;
         challenge[Component] = ChallengeComponent;
 
-        challenge.completions = persistent(0);
-        challenge.active = persistent(false);
+        challenge.completions = completions;
+        challenge.active = active;
         challenge.completed = computed(() =>
             Decimal.gt((challenge as GenericChallenge).completions.value, 0)
         );
@@ -209,6 +205,7 @@ export function createChallenge<T extends ChallengeOptions>(
         }
 
         processComputable(challenge as T, "canStart");
+        setDefault(challenge, "canStart", true);
         processComputable(challenge as T, "canComplete");
         processComputable(challenge as T, "completionLimit");
         setDefault(challenge, "completionLimit", 1);
